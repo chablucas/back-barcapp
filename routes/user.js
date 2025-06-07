@@ -57,7 +57,7 @@ router.patch('/me', verifyToken, async (req, res) => {
 // 🖼 PATCH /users/me/avatar — Upload avatar image
 router.patch('/me/avatar', verifyToken, upload.single('avatar'), async (req, res) => {
   try {
-    const avatarUrl = `http://localhost:5000/uploads/${req.file.filename}`;
+    const avatarUrl = `http://back-barcapp.onrender.com/uploads/${req.file.filename}`;
 
     const user = await User.findByIdAndUpdate(
       req.user.id,
@@ -78,7 +78,7 @@ router.patch('/me/avatar', verifyToken, upload.single('avatar'), async (req, res
 // 🌄 PATCH /users/me/banner — Upload bannière
 router.patch('/me/banner', verifyToken, upload.single('banner'), async (req, res) => {
   try {
-    const bannerUrl = `http://localhost:5000/uploads/${req.file.filename}`;
+    const bannerUrl = `http://back-barcapp.onrender.com/uploads/${req.file.filename}`;
 
     const user = await User.findByIdAndUpdate(
       req.user.id,
