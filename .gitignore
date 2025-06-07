@@ -1,0 +1,16 @@
+# Ne pas versionner les modules installés
+node_modules/
+
+# Fichiers d'environnement sensibles
+.env
+
+# Dossiers d'uploads temporaires
+uploads/
+
+# Logs (optionnel mais recommandé)
+*.log
+
+# OS + IDE fichiers temporaires
+.DS_Store
+Thumbs.db
+.vscode/
