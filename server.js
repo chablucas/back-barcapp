@@ -9,15 +9,20 @@ connectDB();
 
 const app = express();
 
-app.use(cors());
+const corsOptions = {
+  origin: ['https://front-barcapp.vercel.app'],
+  credentials: true,
+};
+app.use(cors(corsOptions));
+
 app.use(express.json());
 
 // Routes
 const authRoutes = require('./routes/auth');
 app.use('/api/auth', authRoutes);
 
-const userRoutes = require('./routes/user'); // ✅ au pluriel côté route
-app.use('/api/users', userRoutes); // ✅ cohérent avec /users/me ou /users/favorites
+const userRoutes = require('./routes/user'); 
+app.use('/api/users', userRoutes); 
 
 const videoRoutes = require('./routes/videoRoutes');
 app.use('/api/videos', videoRoutes);
