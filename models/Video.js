@@ -5,11 +5,18 @@ const videoSchema = new mongoose.Schema({
   description: String,
   competition: {
     type: String,
-    enum: ['LaLiga', 'Ligue des Champions', 'Coupe du Roi', 'Supercoupe d’Espagne', 'Avis Culers', 'Autre'],
+    enum: [
+      'LaLiga',
+      'Ligue des Champions',
+      'Coupe du Roi',
+      'Supercoupe d’Espagne',
+      'Avis Culers',
+      'Autre'
+    ],
     default: 'Autre'
   },
   videoUrl: { type: String, required: true, unique: true },
-  isPrivate: { type: Boolean, default: true },
+  isPrivate: { type: Boolean, default: false }, // ⬅️ Correction : plus de privé par défaut
   isShort: { type: Boolean, default: false },
   publishedAt: { type: Date },
   likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
