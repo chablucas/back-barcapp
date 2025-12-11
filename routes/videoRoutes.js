@@ -10,6 +10,7 @@ router.post('/', verifyToken, async (req, res) => {
   try {
     const { title, description, competition, videoUrl, isShort, publishedAt } = req.body;
 
+    // Sécurité : on vérifie les champs de base
     if (!title || !videoUrl || !competition) {
       return res
         .status(400)
@@ -21,24 +22,28 @@ router.post('/', verifyToken, async (req, res) => {
       description,
       competition,
       videoUrl,
-      // plus de gestion de privé : tout est public
+      // on force tout public, si le schéma a un isPrivate il prendra false
       isPrivate: false,
-      isShort: isShort ?? false,
-      publishedAt: publishedAt ?? new Date()
+      // si le schéma a isShort, sinon il sera ignoré
+      isShort: typeof isShort === 'boolean' ? isShort : false,
+      // si le schéma a publishedAt, sinon il sera ignoré
+      publishedAt: publishedAt ? new Date(publishedAt) : new Date()
     });
 
-    await newVideo.save();
-    res.status(201).json({ message: 'Vidéo ajoutée avec succès', video: newVideo });
+    const saved = await newVideo.save();
+    return res.status(201).json({ message: 'Vidéo ajoutée avec succès', video: saved });
   } catch (err) {
     console.error('Erreur création vidéo:', err);
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    // 👉 on renvoie aussi err.message pour qu’on puisse le lire côté front
+    return res
+      .status(500)
+      .json({ message: 'Erreur serveur lors de la création de la vidéo.', error: err.message });
   }
 });
 
 // 📄 Récupérer toutes les vidéos normales (exclure les shorts)
 router.get('/', async (req, res) => {
   try {
-    // on ne filtre plus sur isPrivate : toutes les vidéos non-short sont visibles
     const videos = await Video.find({ isShort: false }).sort({ publishedAt: -1 });
 
     const videosWithExtras = await Promise.all(
@@ -61,10 +66,10 @@ router.get('/', async (req, res) => {
       })
     );
 
-    res.json(videosWithExtras);
+    return res.json(videosWithExtras);
   } catch (err) {
     console.error('Erreur get vidéos:', err);
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    return res.status(500).json({ message: 'Erreur serveur', error: err.message });
   }
 });
 
@@ -93,10 +98,10 @@ router.get('/shorts', async (req, res) => {
       })
     );
 
-    res.json(videosWithExtras);
+    return res.json(videosWithExtras);
   } catch (err) {
     console.error('Erreur get shorts:', err);
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    return res.status(500).json({ message: 'Erreur serveur', error: err.message });
   }
 });
 
@@ -108,10 +113,10 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Vidéo non trouvée' });
     }
 
-    res.json(video);
+    return res.json(video);
   } catch (err) {
     console.error('Erreur get vidéo:', err);
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    return res.status(500).json({ message: 'Erreur serveur', error: err.message });
   }
 });
 
@@ -123,10 +128,10 @@ router.delete('/:id', isAdmin, async (req, res) => {
       return res.status(404).json({ message: 'Vidéo introuvable' });
     }
 
-    res.json({ message: 'Vidéo supprimée' });
+    return res.json({ message: 'Vidéo supprimée' });
   } catch (err) {
     console.error('Erreur delete vidéo:', err);
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    return res.status(500).json({ message: 'Erreur serveur', error: err.message });
   }
 });
 
@@ -151,14 +156,14 @@ router.patch('/:id/like', verifyToken, async (req, res) => {
     }
 
     await video.save();
-    res.json({
+    return res.json({
       message: 'Like mis à jour',
       likes: video.likes.length,
       dislikes: video.dislikes.length
     });
   } catch (err) {
     console.error('Erreur like vidéo:', err);
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    return res.status(500).json({ message: 'Erreur serveur', error: err.message });
   }
 });
 
@@ -183,14 +188,14 @@ router.patch('/:id/dislike', verifyToken, async (req, res) => {
     }
 
     await video.save();
-    res.json({
+    return res.json({
       message: 'Dislike mis à jour',
       likes: video.likes.length,
       dislikes: video.dislikes.length
     });
   } catch (err) {
     console.error('Erreur dislike vidéo:', err);
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    return res.status(500).json({ message: 'Erreur serveur', error: err.message });
   }
 });
 
@@ -206,10 +211,10 @@ router.post('/import', async (req, res) => {
       }
     }
 
-    res.status(200).json({ message: 'Vidéos importées avec succès' });
+    return res.status(200).json({ message: 'Vidéos importées avec succès' });
   } catch (err) {
     console.error('Erreur import vidéos:', err.message);
-    res.status(500).json({ error: 'Erreur lors de l’import des vidéos' });
+    return res.status(500).json({ error: 'Erreur lors de l’import des vidéos' });
   }
 });
 
