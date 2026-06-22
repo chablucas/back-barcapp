@@ -40,7 +40,7 @@ router.post('/login', async (req, res) => {
       isBlocked: user.isBlocked
       }
     });
-    
+
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur', error: err.message });
   }
@@ -56,7 +56,7 @@ router.get('/google/callback',
   passport.authenticate('google', { session: false, failureRedirect: '/login' }),
   (req, res) => {
     const { token } = req.user;
-    res.redirect(`http://front-barcapp.vercel.app/google-auth?token=${token}`);
+    res.redirect(`https://front-barcapp.vercel.app/google-auth?token=${token}`);
   }
 );
 
