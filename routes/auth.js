@@ -1,7 +1,7 @@
 const express = require('express');
 const passport = require('passport');
 const router = express.Router();
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { register } = require('../controllers/authController');
@@ -23,8 +23,24 @@ router.post('/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json({ message: "Mot de passe incorrect" });
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user });
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      token,
+      user: {
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      avatar: user.avatar,
+      role: user.role,
+      isBlocked: user.isBlocked
+      }
+    });
+    
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur', error: err.message });
   }
