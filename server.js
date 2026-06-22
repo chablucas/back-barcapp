@@ -10,9 +10,20 @@ connectDB();
 const app = express();
 
 const corsOptions = {
-  origin: ['https://front-barcapp.vercel.app'],
+  origin: function (origin, callback) {
+    if (
+      !origin ||
+      origin === 'https://front-barcapp.vercel.app' ||
+      origin.endsWith('.vercel.app')
+    ) {
+      callback(null, true);
+    } else {
+      callback(new Error('Non autorisé par CORS'));
+    }
+  },
   credentials: true,
 };
+
 app.use(cors(corsOptions));
 
 app.use(express.json());
