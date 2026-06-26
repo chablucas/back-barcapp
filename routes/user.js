@@ -145,6 +145,91 @@ router.get('/search', verifyToken, async (req, res) => {
   }
 });
 
+// 🛡 Middleware admin local
+const verifyAdmin = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    if (!user || user.role !== 'admin') {
+      return res.status(403).json({ message: 'Accès réservé aux administrateurs.' });
+    }
+
+    next();
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur vérification admin', error: err.message });
+  }
+};
+
+// 👥 GET /users/admin/all — Liste tous les utilisateurs
+router.get('/admin/all', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const users = await User.find()
+      .select('-password')
+      .sort({ createdAt: -1 });
+
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur récupération utilisateurs', error: err.message });
+  }
+});
+
+// 🚫 PATCH /users/admin/:id/block — Bloquer / débloquer
+router.patch('/admin/:id/block', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    if (req.params.id === req.user.id) {
+      return res.status(400).json({ message: 'Tu ne peux pas te bloquer toi-même.' });
+    }
+
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur introuvable.' });
+    }
+
+    user.isBlocked = !user.isBlocked;
+    await user.save();
+
+    res.json({
+      message: user.isBlocked ? 'Utilisateur bloqué.' : 'Utilisateur débloqué.',
+      user,
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur blocage utilisateur', error: err.message });
+  }
+});
+
+// 👑 PATCH /users/admin/:id/role — Changer rôle user/admin
+router.patch('/admin/:id/role', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const { role } = req.body;
+
+    if (!['user', 'admin'].includes(role)) {
+      return res.status(400).json({ message: 'Rôle invalide.' });
+    }
+
+    if (req.params.id === req.user.id && role !== 'admin') {
+      return res.status(400).json({ message: 'Tu ne peux pas retirer ton propre rôle admin.' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { role },
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur introuvable.' });
+    }
+
+    res.json({
+      message: 'Rôle mis à jour.',
+      user,
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur modification rôle', error: err.message });
+  }
+});
+
 // 📄 GET /users/:id/likes — Vidéos likées par un user
 router.get('/:id/likes', async (req, res) => {
   try {
