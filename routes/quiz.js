@@ -58,6 +58,37 @@ router.get('/today', verifyToken, async (req, res) => {
   }
 });
 
+// POST /api/quiz/check
+router.post('/check', verifyToken, async (req, res) => {
+  try {
+    const { questionId, answer } = req.body;
+
+    if (!questionId || typeof answer !== 'boolean') {
+      return res.status(400).json({
+        message: 'questionId et answer sont requis.',
+      });
+    }
+
+    const question = await QuizQuestion.findById(questionId);
+
+    if (!question) {
+      return res.status(404).json({
+        message: 'Question introuvable.',
+      });
+    }
+
+    const isCorrect = question.answer === answer;
+
+    res.json({
+      isCorrect,
+      correctAnswer: question.answer,
+    });
+  } catch (err) {
+    console.error('Erreur POST /quiz/check:', err);
+    res.status(500).json({ message: 'Erreur serveur quiz.' });
+  }
+});
+
 // POST /api/quiz/answer
 router.post('/answer', verifyToken, async (req, res) => {
   try {
