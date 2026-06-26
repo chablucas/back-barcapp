@@ -2,25 +2,36 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const Video = require('../models/Video');
-const Comment = require('../models/Comment'); // ✅ nécessaire pour les commentaires
+const Comment = require('../models/Comment');
 const verifyToken = require('../middleware/auth');
-const isAdmin = require('../middleware/isAdmin');
 const multer = require('multer');
-const path = require('path');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
-// 🌍 URL publique du backend (utilisée pour générer l'URL des images)
-const PUBLIC_BACK_URL = process.env.BACK_PUBLIC_URL || 'https://back-barcapp.onrender.com';
-
-// 🎯 Multer config
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/'),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${req.user.id}_${file.fieldname}${ext}`);
-  }
+// ☁️ Config Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
-const upload = multer({ storage });
 
+// 🎯 Stockage Cloudinary
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req, file) => {
+    const folder = file.fieldname === 'banner'
+      ? 'barcapp/banners'
+      : 'barcapp/avatars';
+
+    return {
+      folder,
+      allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+      public_id: `${req.user.id}_${file.fieldname}_${Date.now()}`,
+    };
+  },
+});
+
+const upload = multer({ storage });
 
 // 🔐 GET /users/me — Profil connecté
 router.get('/me', verifyToken, async (req, res) => {
@@ -31,17 +42,18 @@ router.get('/me', verifyToken, async (req, res) => {
       .populate('favorites', 'title');
 
     if (!user) return res.status(404).json({ message: 'Utilisateur introuvable' });
+
     res.json(user);
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur', error: err.message });
   }
 });
 
-
 // 🔧 PATCH /users/me — Modifier pseudo ou avatar par URL
 router.patch('/me', verifyToken, async (req, res) => {
   try {
     const updates = {};
+
     if (req.body.username) updates.username = req.body.username;
     if (req.body.avatar) updates.avatar = req.body.avatar;
 
@@ -56,15 +68,14 @@ router.patch('/me', verifyToken, async (req, res) => {
   }
 });
 
-
-// 🖼 PATCH /users/me/avatar — Upload avatar image
+// 🖼 PATCH /users/me/avatar — Upload avatar Cloudinary
 router.patch('/me/avatar', verifyToken, upload.single('avatar'), async (req, res) => {
   try {
-    if (!req.file) {
+    if (!req.file || !req.file.path) {
       return res.status(400).json({ message: 'Aucun fichier envoyé.' });
     }
 
-    const avatarUrl = `${PUBLIC_BACK_URL}/uploads/${req.file.filename}`;
+    const avatarUrl = req.file.path;
 
     const user = await User.findByIdAndUpdate(
       req.user.id,
@@ -81,15 +92,14 @@ router.patch('/me/avatar', verifyToken, upload.single('avatar'), async (req, res
   }
 });
 
-
-// 🌄 PATCH /users/me/banner — Upload bannière
+// 🌄 PATCH /users/me/banner — Upload bannière Cloudinary
 router.patch('/me/banner', verifyToken, upload.single('banner'), async (req, res) => {
   try {
-    if (!req.file) {
+    if (!req.file || !req.file.path) {
       return res.status(400).json({ message: 'Aucun fichier envoyé.' });
     }
 
-    const bannerUrl = `${PUBLIC_BACK_URL}/uploads/${req.file.filename}`;
+    const bannerUrl = req.file.path;
 
     const user = await User.findByIdAndUpdate(
       req.user.id,
@@ -106,7 +116,6 @@ router.patch('/me/banner', verifyToken, upload.single('banner'), async (req, res
   }
 });
 
-
 // 📄 GET /users/:id/likes — Vidéos likées par un user
 router.get('/:id/likes', async (req, res) => {
   try {
@@ -114,12 +123,13 @@ router.get('/:id/likes', async (req, res) => {
 
     const videos = await Video.find({
       likes: userId,
-      isPrivate: false
+      isPrivate: false,
     }).sort({ createdAt: -1 });
 
     const videosWithCounts = await Promise.all(
       videos.map(async (video) => {
         const commentCount = await Comment.countDocuments({ videoId: video._id });
+
         return {
           _id: video._id,
           title: video.title,
@@ -129,7 +139,7 @@ router.get('/:id/likes', async (req, res) => {
           createdAt: video.createdAt,
           likesCount: video.likes.length,
           dislikesCount: video.dislikes.length,
-          commentCount
+          commentCount,
         };
       })
     );
