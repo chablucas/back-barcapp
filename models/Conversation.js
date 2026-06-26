@@ -9,10 +9,18 @@ const conversationSchema = new mongoose.Schema(
         required: true,
       },
     ],
+
     lastMessage: {
       type: String,
       default: '',
     },
+
+    readBy: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
   },
   { timestamps: true }
 );

@@ -15,7 +15,18 @@ router.get('/', verifyToken, async (req, res) => {
       .populate('participants', 'username avatar role isBlocked')
       .sort({ updatedAt: -1 });
 
-    res.json(conversations);
+    const conversationsWithUnread = conversations.map((conversation) => {
+      const hasRead = conversation.readBy?.some(
+        (userId) => userId.toString() === req.user._id.toString()
+      );
+
+      return {
+        ...conversation.toObject(),
+        isUnread: !hasRead && Boolean(conversation.lastMessage),
+      };
+    });
+
+    res.json(conversationsWithUnread);
   } catch (err) {
     res.status(500).json({
       message: 'Erreur récupération conversations',
@@ -56,6 +67,7 @@ router.post('/start/:userId', verifyToken, async (req, res) => {
     if (!conversation) {
       conversation = await Conversation.create({
         participants: [req.user._id, otherUserId],
+        readBy: [req.user._id],
       });
 
       conversation = await conversation.populate('participants', 'username avatar role isBlocked');
@@ -82,6 +94,15 @@ router.get('/:id/messages', verifyToken, async (req, res) => {
       return res.status(404).json({
         message: 'Conversation introuvable.',
       });
+    }
+
+    if (
+      !conversation.readBy.some(
+        (userId) => userId.toString() === req.user._id.toString()
+      )
+    ) {
+      conversation.readBy.push(req.user._id);
+      await conversation.save();
     }
 
     const messages = await Message.find({
@@ -134,6 +155,7 @@ router.post('/:id/messages', verifyToken, async (req, res) => {
     });
 
     conversation.lastMessage = content.trim();
+    conversation.readBy = [req.user._id];
     await conversation.save();
 
     const populatedMessage = await message.populate('sender', 'username avatar');
