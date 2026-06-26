@@ -41,7 +41,9 @@ router.get('/me', verifyToken, async (req, res) => {
       .populate('likes', 'title')
       .populate('favorites', 'title');
 
-    if (!user) return res.status(404).json({ message: 'Utilisateur introuvable' });
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur introuvable' });
+    }
 
     res.json(user);
   } catch (err) {
@@ -56,6 +58,7 @@ router.patch('/me', verifyToken, async (req, res) => {
 
     if (req.body.username) updates.username = req.body.username;
     if (req.body.avatar) updates.avatar = req.body.avatar;
+    if (req.body.banner) updates.banner = req.body.banner;
 
     const user = await User.findByIdAndUpdate(req.user.id, updates, { new: true })
       .select('-password')
@@ -113,6 +116,32 @@ router.patch('/me/banner', verifyToken, upload.single('banner'), async (req, res
     res.json({ message: 'Bannière mise à jour', user });
   } catch (err) {
     res.status(500).json({ message: 'Erreur bannière', error: err.message });
+  }
+});
+
+// 🔎 GET /users/search?q=... — Rechercher des utilisateurs
+router.get('/search', verifyToken, async (req, res) => {
+  try {
+    const query = req.query.q;
+
+    if (!query || query.trim().length < 2) {
+      return res.status(400).json({ message: 'Recherche trop courte.' });
+    }
+
+    const users = await User.find({
+      _id: { $ne: req.user.id },
+      username: { $regex: query.trim(), $options: 'i' },
+      isBlocked: false,
+    })
+      .select('username avatar role')
+      .limit(10);
+
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({
+      message: 'Erreur recherche utilisateur',
+      error: err.message,
+    });
   }
 });
 
