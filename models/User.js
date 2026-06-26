@@ -14,6 +14,11 @@ const userSchema = new mongoose.Schema(
     quizStreak: { type: Number, default: 0 },
     lastQuizDate: { type: String, default: null },
     lastQuizCorrect: { type: Boolean, default: null },
+    lastQuizResults: {
+      correct: { type: Number, default: 0 },
+      total: { type: Number, default: 0 },
+      pointsEarned: { type: Number, default: 0 },
+    },
 
     role: {
       type: String,

@@ -5,47 +5,52 @@ const verifyToken = require('../middleware/auth');
 const QuizQuestion = require('../models/QuizQuestion');
 const User = require('../models/User');
 
+const QUESTIONS_PER_DAY = 5;
+
 const getTodayKey = () => {
-  const now = new Date();
-  return now.toISOString().slice(0, 10); // ex: 2026-06-26
+  return new Date().toISOString().slice(0, 10);
 };
 
 // GET /api/quiz/today
 router.get('/today', verifyToken, async (req, res) => {
   try {
     const todayKey = getTodayKey();
-
     const count = await QuizQuestion.countDocuments();
 
     if (count === 0) {
-      return res.status(404).json({
-        message: 'Aucune question disponible.',
-      });
+      return res.status(404).json({ message: 'Aucune question disponible.' });
     }
 
-    // Même question pour tout le monde chaque jour
-    const dayNumber = Math.floor(new Date(todayKey).getTime() / (1000 * 60 * 60 * 24));
-    const index = dayNumber % count;
+    const allQuestions = await QuizQuestion.find();
 
-    const question = await QuizQuestion.findOne().skip(index);
-
-    const user = await User.findById(req.user._id).select(
-      'quizScore quizStreak lastQuizDate lastQuizCorrect'
+    const dayNumber = Math.floor(
+      new Date(todayKey).getTime() / (1000 * 60 * 60 * 24)
     );
 
-    const alreadyAnswered = user.lastQuizDate === todayKey;
+    const startIndex = (dayNumber * QUESTIONS_PER_DAY) % count;
+
+    const todayQuestions = [];
+
+    for (let i = 0; i < QUESTIONS_PER_DAY; i++) {
+      todayQuestions.push(allQuestions[(startIndex + i) % count]);
+    }
+
+    const user = await User.findById(req.user._id).select(
+      'quizScore quizStreak lastQuizDate lastQuizCorrect lastQuizResults'
+    );
 
     res.json({
-      question: {
-        _id: question._id,
-        question: question.question,
-        category: question.category,
-        difficulty: question.difficulty,
-      },
-      alreadyAnswered,
-      lastQuizCorrect: user.lastQuizCorrect,
+      questions: todayQuestions.map((q) => ({
+        _id: q._id,
+        question: q.question,
+        category: q.category,
+        difficulty: q.difficulty,
+      })),
+      alreadyAnswered: user.lastQuizDate === todayKey,
       quizScore: user.quizScore || 0,
       quizStreak: user.quizStreak || 0,
+      lastQuizCorrect: user.lastQuizCorrect,
+      lastQuizResults: user.lastQuizResults,
     });
   } catch (err) {
     console.error('Erreur GET /quiz/today:', err);
@@ -56,12 +61,12 @@ router.get('/today', verifyToken, async (req, res) => {
 // POST /api/quiz/answer
 router.post('/answer', verifyToken, async (req, res) => {
   try {
-    const { questionId, answer } = req.body;
+    const { answers } = req.body;
     const todayKey = getTodayKey();
 
-    if (!questionId || typeof answer !== 'boolean') {
+    if (!Array.isArray(answers) || answers.length !== QUESTIONS_PER_DAY) {
       return res.status(400).json({
-        message: 'questionId et answer sont requis.',
+        message: `Tu dois répondre aux ${QUESTIONS_PER_DAY} questions.`,
       });
     }
 
@@ -69,44 +74,62 @@ router.post('/answer', verifyToken, async (req, res) => {
 
     if (user.lastQuizDate === todayKey) {
       return res.status(400).json({
-        message: 'Tu as déjà répondu à la question du jour.',
+        message: 'Tu as déjà répondu au quiz du jour.',
       });
     }
 
-    const question = await QuizQuestion.findById(questionId);
+    let correctCount = 0;
 
-    if (!question) {
-      return res.status(404).json({
-        message: 'Question introuvable.',
-      });
+    for (const item of answers) {
+      if (!item.questionId || typeof item.answer !== 'boolean') continue;
+
+      const question = await QuizQuestion.findById(item.questionId);
+
+      if (question && question.answer === item.answer) {
+        correctCount += 1;
+      }
     }
-
-    const isCorrect = question.answer === answer;
 
     let pointsEarned = 0;
+    let currentStreak = user.quizStreak || 0;
 
-    if (isCorrect) {
-      user.quizStreak = (user.quizStreak || 0) + 1;
-      pointsEarned = user.quizStreak >= 3 ? 1.5 : 1;
-      user.quizScore = (user.quizScore || 0) + pointsEarned;
+    if (correctCount === QUESTIONS_PER_DAY) {
+      for (let i = 0; i < correctCount; i++) {
+        currentStreak += 1;
+        pointsEarned += currentStreak >= 3 ? 1.5 : 1;
+      }
+
+      user.quizStreak = currentStreak;
     } else {
+      for (let i = 0; i < correctCount; i++) {
+        pointsEarned += 1;
+      }
+
       user.quizStreak = 0;
     }
 
+    user.quizScore = (user.quizScore || 0) + pointsEarned;
     user.lastQuizDate = todayKey;
-    user.lastQuizCorrect = isCorrect;
+    user.lastQuizCorrect = correctCount === QUESTIONS_PER_DAY;
+    user.lastQuizResults = {
+      correct: correctCount,
+      total: QUESTIONS_PER_DAY,
+      pointsEarned,
+    };
 
     await user.save();
 
     res.json({
-      isCorrect,
-      correctAnswer: question.answer,
+      correctCount,
+      total: QUESTIONS_PER_DAY,
       pointsEarned,
       quizScore: user.quizScore,
       quizStreak: user.quizStreak,
-      message: isCorrect
-        ? `Bonne réponse ! +${pointsEarned} point${pointsEarned > 1 ? 's' : ''}`
-        : 'Mauvaise réponse. La série repart à 0.',
+      perfect: correctCount === QUESTIONS_PER_DAY,
+      message:
+        correctCount === QUESTIONS_PER_DAY
+          ? `Parfait ! ${correctCount}/${QUESTIONS_PER_DAY} bonnes réponses.`
+          : `${correctCount}/${QUESTIONS_PER_DAY} bonnes réponses. La série repart à 0.`,
     });
   } catch (err) {
     console.error('Erreur POST /quiz/answer:', err);
