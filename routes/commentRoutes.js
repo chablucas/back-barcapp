@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Comment = require('../models/Comment');
+const User = require('../models/User');
 const verifyToken = require('../middleware/auth');
 
 /**
@@ -12,8 +13,8 @@ router.get('/:videoId', async (req, res) => {
     const { videoId } = req.params;
 
     const comments = await Comment.find({ videoId })
-      .populate('userId', 'username avatar') // on récupère le pseudo + avatar
-      .sort({ createdAt: -1 });              // les plus récents en premier
+      .populate('userId', 'username avatar')
+      .sort({ createdAt: -1 });
 
     res.json(comments);
   } catch (err) {
@@ -28,11 +29,16 @@ router.get('/:videoId', async (req, res) => {
  */
 router.post('/', verifyToken, async (req, res) => {
   try {
-    // blocage des utilisateurs bannis
-    if (req.user.isBlocked) {
-      return res
-        .status(403)
-        .json({ message: 'Vous êtes bloqué et ne pouvez pas commenter.' });
+    const connectedUser = await User.findById(req.user.id);
+
+    if (!connectedUser) {
+      return res.status(404).json({ message: 'Utilisateur introuvable.' });
+    }
+
+    if (connectedUser.isBlocked) {
+      return res.status(403).json({
+        message: 'Votre compte est limité. Vous ne pouvez pas commenter.',
+      });
     }
 
     const { content, videoId } = req.body;
@@ -51,12 +57,12 @@ router.post('/', verifyToken, async (req, res) => {
 
     await comment.save();
 
-    // on repopulate pour renvoyer username + avatar
     const populatedComment = await comment.populate('userId', 'username avatar');
 
-    res
-      .status(201)
-      .json({ message: 'Commentaire ajouté', comment: populatedComment });
+    res.status(201).json({
+      message: 'Commentaire ajouté',
+      comment: populatedComment,
+    });
   } catch (err) {
     console.error('Erreur POST /comments :', err);
     res.status(500).json({ message: 'Erreur serveur', error: err.message });

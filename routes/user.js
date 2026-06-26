@@ -264,4 +264,24 @@ router.get('/:id/likes', async (req, res) => {
   }
 });
 
+// 👤 GET /users/:id — Profil public
+router.get('/:id', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select(
+      'username avatar banner'
+    );
+
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur introuvable' });
+    }
+
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({
+      message: 'Erreur récupération profil public',
+      error: err.message,
+    });
+  }
+});
+
 module.exports = router;

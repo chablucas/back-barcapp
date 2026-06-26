@@ -29,14 +29,30 @@ router.post('/start/:userId', verifyToken, async (req, res) => {
   try {
     const otherUserId = req.params.userId;
 
+    const currentUser = await User.findById(req.user.id);
+
+    if (!currentUser) {
+      return res.status(404).json({ message: 'Utilisateur introuvable.' });
+    }
+
+    if (currentUser.isBlocked) {
+      return res.status(403).json({
+        message: 'Votre compte est limité. Vous ne pouvez pas envoyer de messages.',
+      });
+    }
+
     if (otherUserId === req.user.id) {
-      return res.status(400).json({ message: 'Impossible de discuter avec soi-même.' });
+      return res.status(400).json({
+        message: 'Impossible de discuter avec soi-même.',
+      });
     }
 
     const otherUser = await User.findById(otherUserId);
 
     if (!otherUser || otherUser.isBlocked) {
-      return res.status(404).json({ message: 'Utilisateur introuvable.' });
+      return res.status(404).json({
+        message: 'Utilisateur introuvable.',
+      });
     }
 
     let conversation = await Conversation.findOne({
@@ -69,7 +85,9 @@ router.get('/:id/messages', verifyToken, async (req, res) => {
     });
 
     if (!conversation) {
-      return res.status(404).json({ message: 'Conversation introuvable.' });
+      return res.status(404).json({
+        message: 'Conversation introuvable.',
+      });
     }
 
     const messages = await Message.find({
@@ -92,8 +110,22 @@ router.post('/:id/messages', verifyToken, async (req, res) => {
   try {
     const { content } = req.body;
 
+    const currentUser = await User.findById(req.user.id);
+
+    if (!currentUser) {
+      return res.status(404).json({ message: 'Utilisateur introuvable.' });
+    }
+
+    if (currentUser.isBlocked) {
+      return res.status(403).json({
+        message: 'Votre compte est limité. Vous ne pouvez pas envoyer de messages.',
+      });
+    }
+
     if (!content || !content.trim()) {
-      return res.status(400).json({ message: 'Message vide.' });
+      return res.status(400).json({
+        message: 'Message vide.',
+      });
     }
 
     const conversation = await Conversation.findOne({
@@ -102,7 +134,9 @@ router.post('/:id/messages', verifyToken, async (req, res) => {
     });
 
     if (!conversation) {
-      return res.status(404).json({ message: 'Conversation introuvable.' });
+      return res.status(404).json({
+        message: 'Conversation introuvable.',
+      });
     }
 
     const message = await Message.create({
