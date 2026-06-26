@@ -1,13 +1,11 @@
 const express = require('express');
 const router = express.Router();
+
 const Comment = require('../models/Comment');
 const User = require('../models/User');
 const verifyToken = require('../middleware/auth');
 
-/**
- * GET /api/comments/:videoId
- * Récupérer tous les commentaires d'une vidéo
- */
+// GET /api/comments/:videoId
 router.get('/:videoId', async (req, res) => {
   try {
     const { videoId } = req.params;
@@ -23,19 +21,16 @@ router.get('/:videoId', async (req, res) => {
   }
 });
 
-/**
- * POST /api/comments
- * Ajouter un commentaire à une vidéo
- */
+// POST /api/comments
 router.post('/', verifyToken, async (req, res) => {
   try {
-    const connectedUser = await User.findById(req.user.id);
+    const connectedUser = await User.findById(req.user._id);
 
     if (!connectedUser) {
       return res.status(404).json({ message: 'Utilisateur introuvable.' });
     }
 
-    if (connectedUser.isBlocked) {
+    if (connectedUser.isBlocked === true) {
       return res.status(403).json({
         message: 'Votre compte est limité. Vous ne pouvez pas commenter.',
       });
@@ -43,16 +38,16 @@ router.post('/', verifyToken, async (req, res) => {
 
     const { content, videoId } = req.body;
 
-    if (!content || !videoId) {
-      return res
-        .status(400)
-        .json({ message: 'Contenu et ID de la vidéo requis.' });
+    if (!content || !content.trim() || !videoId) {
+      return res.status(400).json({
+        message: 'Contenu et ID de la vidéo requis.',
+      });
     }
 
     const comment = new Comment({
-      content,
+      content: content.trim(),
       videoId,
-      userId: req.user.id,
+      userId: connectedUser._id,
     });
 
     await comment.save();
