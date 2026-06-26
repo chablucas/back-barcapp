@@ -51,6 +51,8 @@ app.use(passport.initialize());
 const barcaRoutes = require('./routes/barca');
 app.use('/api/barca', barcaRoutes);
 
+app.use('/api/conversations', require('./routes/conversation'));
+
 // Test API
 app.get('/', (req, res) => {
     res.send('API fonctionnelle !');
