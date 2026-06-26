@@ -10,9 +10,9 @@ const verifyToken = require('../middleware/auth');
 router.get('/', verifyToken, async (req, res) => {
   try {
     const conversations = await Conversation.find({
-      participants: req.user.id,
+      participants: req.user._id,
     })
-      .populate('participants', 'username avatar role')
+      .populate('participants', 'username avatar role isBlocked')
       .sort({ updatedAt: -1 });
 
     res.json(conversations);
@@ -29,19 +29,13 @@ router.post('/start/:userId', verifyToken, async (req, res) => {
   try {
     const otherUserId = req.params.userId;
 
-    const currentUser = await User.findById(req.user.id);
-
-    if (!currentUser) {
-      return res.status(404).json({ message: 'Utilisateur introuvable.' });
-    }
-
-    if (currentUser.isBlocked) {
+    if (req.user.isBlocked) {
       return res.status(403).json({
         message: 'Votre compte est limité. Vous ne pouvez pas envoyer de messages.',
       });
     }
 
-    if (otherUserId === req.user.id) {
+    if (otherUserId === req.user._id.toString()) {
       return res.status(400).json({
         message: 'Impossible de discuter avec soi-même.',
       });
@@ -56,15 +50,15 @@ router.post('/start/:userId', verifyToken, async (req, res) => {
     }
 
     let conversation = await Conversation.findOne({
-      participants: { $all: [req.user.id, otherUserId] },
-    }).populate('participants', 'username avatar role');
+      participants: { $all: [req.user._id, otherUserId] },
+    }).populate('participants', 'username avatar role isBlocked');
 
     if (!conversation) {
       conversation = await Conversation.create({
-        participants: [req.user.id, otherUserId],
+        participants: [req.user._id, otherUserId],
       });
 
-      conversation = await conversation.populate('participants', 'username avatar role');
+      conversation = await conversation.populate('participants', 'username avatar role isBlocked');
     }
 
     res.json(conversation);
@@ -81,7 +75,7 @@ router.get('/:id/messages', verifyToken, async (req, res) => {
   try {
     const conversation = await Conversation.findOne({
       _id: req.params.id,
-      participants: req.user.id,
+      participants: req.user._id,
     });
 
     if (!conversation) {
@@ -108,19 +102,13 @@ router.get('/:id/messages', verifyToken, async (req, res) => {
 // ✉️ POST /conversations/:id/messages — envoyer un message
 router.post('/:id/messages', verifyToken, async (req, res) => {
   try {
-    const { content } = req.body;
-
-    const currentUser = await User.findById(req.user.id);
-
-    if (!currentUser) {
-      return res.status(404).json({ message: 'Utilisateur introuvable.' });
-    }
-
-    if (currentUser.isBlocked) {
+    if (req.user.isBlocked) {
       return res.status(403).json({
         message: 'Votre compte est limité. Vous ne pouvez pas envoyer de messages.',
       });
     }
+
+    const { content } = req.body;
 
     if (!content || !content.trim()) {
       return res.status(400).json({
@@ -130,7 +118,7 @@ router.post('/:id/messages', verifyToken, async (req, res) => {
 
     const conversation = await Conversation.findOne({
       _id: req.params.id,
-      participants: req.user.id,
+      participants: req.user._id,
     });
 
     if (!conversation) {
@@ -141,7 +129,7 @@ router.post('/:id/messages', verifyToken, async (req, res) => {
 
     const message = await Message.create({
       conversation: req.params.id,
-      sender: req.user.id,
+      sender: req.user._id,
       content: content.trim(),
     });
 
