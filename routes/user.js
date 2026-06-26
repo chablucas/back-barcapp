@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
+
 const User = require('../models/User');
 const Video = require('../models/Video');
 const Comment = require('../models/Comment');
 const verifyToken = require('../middleware/auth');
+
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
@@ -26,17 +28,37 @@ const storage = new CloudinaryStorage({
     return {
       folder,
       allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
-      public_id: `${req.user.id}_${file.fieldname}_${Date.now()}`,
+      public_id: `${req.user._id}_${file.fieldname}_${Date.now()}`,
     };
   },
 });
 
 const upload = multer({ storage });
 
+// 🛡 Middleware admin local
+const verifyAdmin = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (!user || user.role !== 'admin') {
+      return res.status(403).json({
+        message: 'Accès réservé aux administrateurs.',
+      });
+    }
+
+    next();
+  } catch (err) {
+    res.status(500).json({
+      message: 'Erreur vérification admin',
+      error: err.message,
+    });
+  }
+};
+
 // 🔐 GET /users/me — Profil connecté
 router.get('/me', verifyToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id)
+    const user = await User.findById(req.user._id)
       .select('-password')
       .populate('likes', 'title')
       .populate('favorites', 'title');
@@ -47,7 +69,10 @@ router.get('/me', verifyToken, async (req, res) => {
 
     res.json(user);
   } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    res.status(500).json({
+      message: 'Erreur serveur',
+      error: err.message,
+    });
   }
 });
 
@@ -60,14 +85,21 @@ router.patch('/me', verifyToken, async (req, res) => {
     if (req.body.avatar) updates.avatar = req.body.avatar;
     if (req.body.banner) updates.banner = req.body.banner;
 
-    const user = await User.findByIdAndUpdate(req.user.id, updates, { new: true })
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      updates,
+      { new: true }
+    )
       .select('-password')
       .populate('likes', 'title')
       .populate('favorites', 'title');
 
     res.json(user);
   } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    res.status(500).json({
+      message: 'Erreur serveur',
+      error: err.message,
+    });
   }
 });
 
@@ -75,13 +107,15 @@ router.patch('/me', verifyToken, async (req, res) => {
 router.patch('/me/avatar', verifyToken, upload.single('avatar'), async (req, res) => {
   try {
     if (!req.file || !req.file.path) {
-      return res.status(400).json({ message: 'Aucun fichier envoyé.' });
+      return res.status(400).json({
+        message: 'Aucun fichier envoyé.',
+      });
     }
 
     const avatarUrl = req.file.path;
 
     const user = await User.findByIdAndUpdate(
-      req.user.id,
+      req.user._id,
       { avatar: avatarUrl },
       { new: true }
     )
@@ -89,9 +123,15 @@ router.patch('/me/avatar', verifyToken, upload.single('avatar'), async (req, res
       .populate('likes', 'title')
       .populate('favorites', 'title');
 
-    res.json({ message: 'Avatar mis à jour', user });
+    res.json({
+      message: 'Avatar mis à jour',
+      user,
+    });
   } catch (err) {
-    res.status(500).json({ message: 'Erreur avatar', error: err.message });
+    res.status(500).json({
+      message: 'Erreur avatar',
+      error: err.message,
+    });
   }
 });
 
@@ -99,13 +139,15 @@ router.patch('/me/avatar', verifyToken, upload.single('avatar'), async (req, res
 router.patch('/me/banner', verifyToken, upload.single('banner'), async (req, res) => {
   try {
     if (!req.file || !req.file.path) {
-      return res.status(400).json({ message: 'Aucun fichier envoyé.' });
+      return res.status(400).json({
+        message: 'Aucun fichier envoyé.',
+      });
     }
 
     const bannerUrl = req.file.path;
 
     const user = await User.findByIdAndUpdate(
-      req.user.id,
+      req.user._id,
       { banner: bannerUrl },
       { new: true }
     )
@@ -113,9 +155,15 @@ router.patch('/me/banner', verifyToken, upload.single('banner'), async (req, res
       .populate('likes', 'title')
       .populate('favorites', 'title');
 
-    res.json({ message: 'Bannière mise à jour', user });
+    res.json({
+      message: 'Bannière mise à jour',
+      user,
+    });
   } catch (err) {
-    res.status(500).json({ message: 'Erreur bannière', error: err.message });
+    res.status(500).json({
+      message: 'Erreur bannière',
+      error: err.message,
+    });
   }
 });
 
@@ -125,11 +173,13 @@ router.get('/search', verifyToken, async (req, res) => {
     const query = req.query.q;
 
     if (!query || query.trim().length < 2) {
-      return res.status(400).json({ message: 'Recherche trop courte.' });
+      return res.status(400).json({
+        message: 'Recherche trop courte.',
+      });
     }
 
     const users = await User.find({
-      _id: { $ne: req.user.id },
+      _id: { $ne: req.user._id },
       username: { $regex: query.trim(), $options: 'i' },
       isBlocked: false,
     })
@@ -145,21 +195,6 @@ router.get('/search', verifyToken, async (req, res) => {
   }
 });
 
-// 🛡 Middleware admin local
-const verifyAdmin = async (req, res, next) => {
-  try {
-    const user = await User.findById(req.user.id);
-
-    if (!user || user.role !== 'admin') {
-      return res.status(403).json({ message: 'Accès réservé aux administrateurs.' });
-    }
-
-    next();
-  } catch (err) {
-    res.status(500).json({ message: 'Erreur vérification admin', error: err.message });
-  }
-};
-
 // 👥 GET /users/admin/all — Liste tous les utilisateurs
 router.get('/admin/all', verifyToken, verifyAdmin, async (req, res) => {
   try {
@@ -169,32 +204,46 @@ router.get('/admin/all', verifyToken, verifyAdmin, async (req, res) => {
 
     res.json(users);
   } catch (err) {
-    res.status(500).json({ message: 'Erreur récupération utilisateurs', error: err.message });
+    res.status(500).json({
+      message: 'Erreur récupération utilisateurs',
+      error: err.message,
+    });
   }
 });
 
 // 🚫 PATCH /users/admin/:id/block — Bloquer / débloquer
 router.patch('/admin/:id/block', verifyToken, verifyAdmin, async (req, res) => {
   try {
-    if (req.params.id === req.user.id) {
-      return res.status(400).json({ message: 'Tu ne peux pas te bloquer toi-même.' });
+    if (req.params.id === req.user._id.toString()) {
+      return res.status(400).json({
+        message: 'Tu ne peux pas te bloquer toi-même.',
+      });
     }
 
-    const user = await User.findById(req.params.id);
+    const targetUser = await User.findById(req.params.id);
 
-    if (!user) {
-      return res.status(404).json({ message: 'Utilisateur introuvable.' });
+    if (!targetUser) {
+      return res.status(404).json({
+        message: 'Utilisateur introuvable.',
+      });
     }
 
-    user.isBlocked = !user.isBlocked;
-    await user.save();
+    targetUser.isBlocked = !targetUser.isBlocked;
+    await targetUser.save();
+
+    const updatedUser = await User.findById(req.params.id).select('-password');
 
     res.json({
-      message: user.isBlocked ? 'Utilisateur bloqué.' : 'Utilisateur débloqué.',
-      user,
+      message: updatedUser.isBlocked
+        ? 'Utilisateur bloqué.'
+        : 'Utilisateur débloqué.',
+      user: updatedUser,
     });
   } catch (err) {
-    res.status(500).json({ message: 'Erreur blocage utilisateur', error: err.message });
+    res.status(500).json({
+      message: 'Erreur blocage utilisateur',
+      error: err.message,
+    });
   }
 });
 
@@ -204,11 +253,15 @@ router.patch('/admin/:id/role', verifyToken, verifyAdmin, async (req, res) => {
     const { role } = req.body;
 
     if (!['user', 'admin'].includes(role)) {
-      return res.status(400).json({ message: 'Rôle invalide.' });
+      return res.status(400).json({
+        message: 'Rôle invalide.',
+      });
     }
 
-    if (req.params.id === req.user.id && role !== 'admin') {
-      return res.status(400).json({ message: 'Tu ne peux pas retirer ton propre rôle admin.' });
+    if (req.params.id === req.user._id.toString() && role !== 'admin') {
+      return res.status(400).json({
+        message: 'Tu ne peux pas retirer ton propre rôle admin.',
+      });
     }
 
     const user = await User.findByIdAndUpdate(
@@ -218,7 +271,9 @@ router.patch('/admin/:id/role', verifyToken, verifyAdmin, async (req, res) => {
     ).select('-password');
 
     if (!user) {
-      return res.status(404).json({ message: 'Utilisateur introuvable.' });
+      return res.status(404).json({
+        message: 'Utilisateur introuvable.',
+      });
     }
 
     res.json({
@@ -226,7 +281,10 @@ router.patch('/admin/:id/role', verifyToken, verifyAdmin, async (req, res) => {
       user,
     });
   } catch (err) {
-    res.status(500).json({ message: 'Erreur modification rôle', error: err.message });
+    res.status(500).json({
+      message: 'Erreur modification rôle',
+      error: err.message,
+    });
   }
 });
 
@@ -242,7 +300,9 @@ router.get('/:id/likes', async (req, res) => {
 
     const videosWithCounts = await Promise.all(
       videos.map(async (video) => {
-        const commentCount = await Comment.countDocuments({ videoId: video._id });
+        const commentCount = await Comment.countDocuments({
+          videoId: video._id,
+        });
 
         return {
           _id: video._id,
@@ -260,7 +320,10 @@ router.get('/:id/likes', async (req, res) => {
 
     res.json(videosWithCounts);
   } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    res.status(500).json({
+      message: 'Erreur serveur',
+      error: err.message,
+    });
   }
 });
 
@@ -272,7 +335,9 @@ router.get('/:id', async (req, res) => {
     );
 
     if (!user) {
-      return res.status(404).json({ message: 'Utilisateur introuvable' });
+      return res.status(404).json({
+        message: 'Utilisateur introuvable',
+      });
     }
 
     res.json(user);
