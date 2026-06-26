@@ -52,6 +52,7 @@ const barcaRoutes = require('./routes/barca');
 app.use('/api/barca', barcaRoutes);
 
 app.use('/api/conversations', require('./routes/conversation'));
+app.use('/api/quiz', require('./routes/quiz'));
 
 // Test API
 app.get('/', (req, res) => {

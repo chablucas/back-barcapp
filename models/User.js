@@ -8,7 +8,12 @@ const userSchema = new mongoose.Schema(
     googleId: { type: String },
 
     avatar: { type: String },
-    banner: { type: String }, // ✅ Ajout du champ bannière
+    banner: { type: String }, 
+
+    quizScore: { type: Number, default: 0 },
+    quizStreak: { type: Number, default: 0 },
+    lastQuizDate: { type: String, default: null },
+    lastQuizCorrect: { type: Boolean, default: null },
 
     role: {
       type: String,
